@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 
-const router = Router();
+const router: Router = Router();
 const bannerPath = path.join(__dirname, '../data/banner.json');
 
 // Configure multer for image uploads
