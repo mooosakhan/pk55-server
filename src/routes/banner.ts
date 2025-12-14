@@ -1,29 +1,18 @@
 import { Router, Response } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import fs from 'fs';
-import path from 'path';
 import multer from 'multer';
+import Banner from '../models/Banner';
 
 const router: Router = Router();
-const bannerPath = path.join(__dirname, '../data/banner.json');
 
-// Configure multer for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../../web/public/assets');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `bg-${Date.now()}${ext}`);
-  }
-});
+// Configure multer for memory storage
+const storage = multer.memoryStorage();
 
 const upload = multer({ 
   storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
@@ -34,29 +23,94 @@ const upload = multer({
 });
 
 // GET banner data (public)
-router.get('/', (req, res: Response) => {
+router.get('/', async (req, res: Response) => {
   try {
-    const bannerData = JSON.parse(fs.readFileSync(bannerPath, 'utf-8'));
+    // Get the most recent banner, or create default if none exists
+    let banner = await Banner.findOne().sort({ createdAt: -1 });
+    
+    if (!banner) {
+      // Create default banner without image
+      banner = new Banner({
+        discountPercentage: 0,
+        date: new Date().toISOString().split('T')[0],
+        heading: 'Welcome',
+        description: 'Check out our latest offers!'
+      });
+      await banner.save();
+    }
+    
+    // Return banner data without image buffer
+    const bannerData = {
+      _id: banner._id,
+      discountPercentage: banner.discountPercentage,
+      date: banner.date,
+      heading: banner.heading,
+      description: banner.description,
+      hasImage: !!banner.image,
+      createdAt: banner.createdAt,
+      updatedAt: banner.updatedAt
+    };
+    
     res.json(bannerData);
   } catch (error) {
+    console.error('Get banner error:', error);
     res.status(500).json({ error: 'Failed to read banner data' });
   }
 });
 
-// UPDATE banner data (protected)
-router.put('/', authMiddleware, (req: AuthRequest, res: Response) => {
+// GET banner image (public)
+router.get('/image', async (req, res: Response) => {
   try {
-    const { discountPercentage, date, heading, description, imageUrl } = req.body;
+    const banner = await Banner.findOne().sort({ createdAt: -1 });
     
-    const bannerData = JSON.parse(fs.readFileSync(bannerPath, 'utf-8'));
+    if (!banner || !banner.image || !banner.image.data) {
+      return res.status(404).json({ error: 'No image found' });
+    }
     
-    if (discountPercentage !== undefined) bannerData.discountPercentage = discountPercentage;
-    if (date !== undefined) bannerData.date = date;
-    if (heading !== undefined) bannerData.heading = heading;
-    if (description !== undefined) bannerData.description = description;
-    if (imageUrl !== undefined) bannerData.imageUrl = imageUrl;
+    res.set('Content-Type', banner.image.contentType);
+    res.send(banner.image.data);
+  } catch (error) {
+    console.error('Get image error:', error);
+    res.status(500).json({ error: 'Failed to retrieve image' });
+  }
+});
 
-    fs.writeFileSync(bannerPath, JSON.stringify(bannerData, null, 2));
+// UPDATE banner data (protected)
+router.put('/', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { discountPercentage, date, heading, description } = req.body;
+    
+    // Get the most recent banner or create new one
+    let banner = await Banner.findOne().sort({ createdAt: -1 });
+    
+    if (!banner) {
+      banner = new Banner({
+        discountPercentage: discountPercentage || 0,
+        date: date || new Date().toISOString().split('T')[0],
+        heading: heading || 'Welcome',
+        description: description || ''
+      });
+    } else {
+      // Update existing banner
+      if (discountPercentage !== undefined) banner.discountPercentage = discountPercentage;
+      if (date !== undefined) banner.date = date;
+      if (heading !== undefined) banner.heading = heading;
+      if (description !== undefined) banner.description = description;
+    }
+
+    await banner.save();
+    
+    // Return banner data without image buffer
+    const bannerData = {
+      _id: banner._id,
+      discountPercentage: banner.discountPercentage,
+      date: banner.date,
+      heading: banner.heading,
+      description: banner.description,
+      hasImage: !!banner.image,
+      createdAt: banner.createdAt,
+      updatedAt: banner.updatedAt
+    };
     
     res.json(bannerData);
   } catch (error) {
@@ -66,20 +120,42 @@ router.put('/', authMiddleware, (req: AuthRequest, res: Response) => {
 });
 
 // Upload image (protected)
-router.post('/upload', authMiddleware, upload.single('image'), (req: AuthRequest, res: Response) => {
+router.post('/upload', authMiddleware, upload.single('image'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const imageUrl = `/assets/${req.file.filename}`;
+    // Get or create banner
+    let banner = await Banner.findOne().sort({ createdAt: -1 });
     
-    // Update banner data with new image URL
-    const bannerData = JSON.parse(fs.readFileSync(bannerPath, 'utf-8'));
-    bannerData.imageUrl = imageUrl;
-    fs.writeFileSync(bannerPath, JSON.stringify(bannerData, null, 2));
+    if (!banner) {
+      banner = new Banner({
+        discountPercentage: 0,
+        date: new Date().toISOString().split('T')[0],
+        heading: 'Welcome',
+        description: '',
+        image: {
+          data: req.file.buffer,
+          contentType: req.file.mimetype,
+          filename: req.file.originalname
+        }
+      });
+    } else {
+      banner.image = {
+        data: req.file.buffer,
+        contentType: req.file.mimetype,
+        filename: req.file.originalname
+      };
+    }
+    
+    await banner.save();
 
-    res.json({ imageUrl, message: 'Image uploaded successfully' });
+    res.json({ 
+      message: 'Image uploaded successfully',
+      filename: req.file.originalname,
+      size: req.file.size
+    });
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Failed to upload image' });
