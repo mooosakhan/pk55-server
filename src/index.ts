@@ -51,7 +51,7 @@ const startServer = async () => {
       console.log(`   - GET  /api/banner/image`);
       console.log(`   - PUT  /api/banner`);
       console.log(`   - POST /api/banner/upload`);
-      console.log('');
+      console.log('');  
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
