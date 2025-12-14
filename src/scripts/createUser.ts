@@ -5,7 +5,7 @@ import User from '../models/User';
 
 const createUser = async (username: string, password: string) => {
   try {
-    const mongoURI = process.env.MONGODB_URI;
+    const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://moosakhan3856902_db_user:ZkEuoV6vHkLYND2Q@cluster0.hyqxoyj.mongodb.net/?appName=Cluster0';
     
     console.log('🔌 Connecting to MongoDB...');
     await mongoose.connect(mongoURI);
