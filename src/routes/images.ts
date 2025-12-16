@@ -1,11 +1,12 @@
 import { Router, Response } from 'express';
+import type { Router as RouterType } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import cloudinary from '../config/cloudinary';
 
-const router = Router();
+const router: RouterType = Router();
 const imagesPath = path.join(__dirname, '../data/images.json');
 
 const storage = multer.memoryStorage();

@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth';
 import imagesRoutes from './routes/images';
+import settingsRoutes from './routes/settings';
 import connectDB from './config/database';
 
 const app = express();
@@ -13,6 +14,7 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/images', imagesRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.get('/', (_req, res) => res.json({ message: 'PK55 API Server' }));
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
