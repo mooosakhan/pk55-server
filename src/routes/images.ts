@@ -1,13 +1,11 @@
 import { Router, Response } from 'express';
 import type { Router as RouterType } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import fs from 'fs';
-import path from 'path';
 import multer from 'multer';
 import cloudinary from '../config/cloudinary';
+import Image from '../models/Image';
 
 const router: RouterType = Router();
-const imagesPath = path.join(__dirname, '../data/images.json');
 
 const storage = multer.memoryStorage();
 const upload = multer({ 
@@ -31,11 +29,10 @@ interface ImageData {
 }
 
 // GET all images sorted by date
-router.get('/', (req, res: Response) => {
+router.get('/', async (req, res: Response) => {
   try {
-    const images: ImageData[] = JSON.parse(fs.readFileSync(imagesPath, 'utf-8'));
-    const sortedImages = images.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    res.json(sortedImages);
+    const images = await Image.find().sort({ date: -1 });
+    res.json(images);
   } catch (error) {
     res.status(500).json({ error: 'Failed to read images data' });
   }
@@ -64,18 +61,12 @@ router.post('/upload' , upload.single('image'), async (req, res:Response ) => {
       uploadStream.end(req.file!.buffer);
     });
 
-    const images: ImageData[] = JSON.parse(fs.readFileSync(imagesPath, 'utf-8'));
-
-    const newImage: ImageData = {
+    const newImage = await Image.create({
       id: result.public_id,
       imageUrl: result.secure_url,
       cloudinaryId: result.public_id,
-      date: date,
-      createdAt: new Date().toISOString()
-    };
-
-    images.push(newImage);
-    fs.writeFileSync(imagesPath, JSON.stringify(images, null, 2));
+      date: date
+    });
 
     res.json({ message: 'Image uploaded successfully', image: newImage });
   } catch (error: any) {
@@ -88,16 +79,14 @@ router.post('/upload' , upload.single('image'), async (req, res:Response ) => {
 router.delete('/:id(*)', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const id = decodeURIComponent(req.params.id);
-    let images: ImageData[] = JSON.parse(fs.readFileSync(imagesPath, 'utf-8'));
     
-    const image = images.find(img => img.id === id);
+    const image = await Image.findOne({ id });
     if (!image) {
       return res.status(404).json({ error: 'Image not found' });
     }
 
     await cloudinary.uploader.destroy(image.cloudinaryId);
-    images = images.filter(img => img.id !== id);
-    fs.writeFileSync(imagesPath, JSON.stringify(images, null, 2));
+    await Image.deleteOne({ id });
 
     res.json({ message: 'Image deleted successfully' });
   } catch (error: any) {
@@ -116,17 +105,17 @@ router.put('/:id(*)/update-date', authMiddleware, async (req: AuthRequest, res: 
       return res.status(400).json({ error: 'Date is required' });
     }
 
-    const images: ImageData[] = JSON.parse(fs.readFileSync(imagesPath, 'utf-8'));
-    const imageIndex = images.findIndex(img => img.id === id);
+    const image = await Image.findOneAndUpdate(
+      { id },
+      { date },
+      { new: true }
+    );
 
-    if (imageIndex === -1) {
+    if (!image) {
       return res.status(404).json({ error: 'Image not found' });
     }
 
-    images[imageIndex].date = date;
-    fs.writeFileSync(imagesPath, JSON.stringify(images, null, 2));
-
-    res.json({ message: 'Image date updated successfully', image: images[imageIndex] });
+    res.json({ message: 'Image date updated successfully', image });
   } catch (error: any) {
     console.error('Update error:', error);
     res.status(500).json({ error: 'Failed to update image: ' + error.message });
@@ -143,15 +132,14 @@ router.put('/:id(*)/replace', authMiddleware, upload.single('image'), async (req
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    let images: ImageData[] = JSON.parse(fs.readFileSync(imagesPath, 'utf-8'));
-    const imageIndex = images.findIndex(img => img.id === id);
+    const existingImage = await Image.findOne({ id });
 
-    if (imageIndex === -1) {
+    if (!existingImage) {
       return res.status(404).json({ error: 'Image not found' });
     }
 
     // Delete old image from Cloudinary
-    await cloudinary.uploader.destroy(images[imageIndex].cloudinaryId);
+    await cloudinary.uploader.destroy(existingImage.cloudinaryId);
 
     // Upload new image
     const result = await new Promise<any>((resolve, reject) => {
@@ -166,17 +154,18 @@ router.put('/:id(*)/replace', authMiddleware, upload.single('image'), async (req
     });
 
     // Update image data
-    images[imageIndex] = {
-      id: result.public_id,
-      imageUrl: result.secure_url,
-      cloudinaryId: result.public_id,
-      date: date || images[imageIndex].date,
-      createdAt: images[imageIndex].createdAt
-    };
+    const updatedImage = await Image.findOneAndUpdate(
+      { id },
+      {
+        id: result.public_id,
+        imageUrl: result.secure_url,
+        cloudinaryId: result.public_id,
+        date: date || existingImage.date
+      },
+      { new: true }
+    );
 
-    fs.writeFileSync(imagesPath, JSON.stringify(images, null, 2));
-
-    res.json({ message: 'Image replaced successfully', image: images[imageIndex] });
+    res.json({ message: 'Image replaced successfully', image: updatedImage });
   } catch (error: any) {
     console.error('Replace error:', error);
     res.status(500).json({ error: 'Failed to replace image: ' + error.message });
