@@ -52,7 +52,11 @@ router.post('/upload' , upload.single('image'), async (req, res:Response ) => {
 
     const result = await new Promise<any>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'pk55', resource_type: 'image' },
+        { 
+          folder: 'pk55', 
+          resource_type: 'image',
+          timeout: 120000 // 2 minutes timeout
+        },
         (error, result) => {
           if (error) reject(error);
           else resolve(result);
