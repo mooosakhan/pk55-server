@@ -25,13 +25,19 @@ app.use('/api/settings', settingsRoutes);
 app.get('/', (_req, res) => res.json({ message: 'PK55 API Server' }));
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-connectDB().then(() => {
-  console.log('✅ Connected to the database');
-}).catch((err) => {
-  console.error('❌ Database connection failed:', err);
-  process.exit(1);
-});
+// Connect to database first, then start server
+const startServer = async () => {
+  try {
+    await connectDB();
+    console.log('✅ Connected to the database');
+    
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ Server running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('❌ Database connection failed:', err);
+    process.exit(1);
+  }
+};
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+startServer();
