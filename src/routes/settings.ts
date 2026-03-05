@@ -42,14 +42,63 @@ router.put('/', authMiddleware, async (req: Request, res: Response) => {
     }
     
     if (subheaderText) {
-      await Settings.findOneAndUpdate(
-        { key: 'subheaderText' },
-        { key: 'subheaderText', value: subheaderText },
-        { upsert: true, new: true }
-      );
+      // Find the existing setting
+      const existingSetting = await Settings.findOne({ key: 'subheaderText' });
+      
+      if (existingSetting) {
+        // If value is different, save old value to history
+        if (existingSetting.value !== subheaderText) {
+          existingSetting.history = existingSetting.history || [];
+          existingSetting.history.push({
+            value: existingSetting.value,
+            changedAt: new Date()
+          });
+          existingSetting.value = subheaderText;
+          await existingSetting.save();
+        }
+      } else {
+        // Create new setting with initial history entry
+        await Settings.create({
+          key: 'subheaderText',
+          value: subheaderText,
+          history: []
+        });
+      }
     }
     
     res.json({ message: 'Settings updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get subheader text history (public)
+router.get('/subheader-history', async (_req: Request, res: Response) => {
+  try {
+    const setting = await Settings.findOne({ key: 'subheaderText' });
+    
+    if (!setting) {
+      return res.json([]);
+    }
+    
+    // Return history + current value
+    const history = setting.history || [];
+    const fullHistory = [
+      ...history.map((h: any) => ({
+        value: h.value,
+        changedAt: h.changedAt
+      })),
+      {
+        value: setting.value,
+        changedAt: setting.updatedAt,
+        current: true
+      }
+    ];
+    
+    // Sort by date (most recent first)
+    fullHistory.sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime());
+    
+    res.json(fullHistory);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
