@@ -72,33 +72,54 @@ router.put('/', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-// Get subheader text history (public)
-router.get('/subheader-history', async (_req: Request, res: Response) => {
+// Get subheader text history (public) with pagination
+router.get('/subheader-history', async (req: Request, res: Response) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+    
     const setting = await Settings.findOne({ key: 'subheaderText' });
     
     if (!setting) {
-      return res.json([]);
+      return res.json({ 
+        items: [], 
+        total: 0, 
+        page, 
+        limit, 
+        hasMore: false 
+      });
     }
     
     // Return history + current value
     const history = setting.history || [];
     const fullHistory = [
-      ...history.map((h: any) => ({
-        value: h.value,
-        changedAt: h.changedAt
-      })),
       {
         value: setting.value,
         changedAt: setting.updatedAt,
         current: true
-      }
+      },
+      ...history.map((h: any) => ({
+        value: h.value,
+        changedAt: h.changedAt
+      }))
     ];
     
     // Sort by date (most recent first)
     fullHistory.sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime());
     
-    res.json(fullHistory);
+    // Apply pagination
+    const total = fullHistory.length;
+    const paginatedHistory = fullHistory.slice(skip, skip + limit);
+    const hasMore = skip + limit < total;
+    
+    res.json({
+      items: paginatedHistory,
+      total,
+      page,
+      limit,
+      hasMore
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
