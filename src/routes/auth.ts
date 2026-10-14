@@ -2,9 +2,9 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
+import { JWT_SECRET } from '../config/config';
 
 const router: Router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 router.post('/login', async (req: Request, res: Response) => {
   try {

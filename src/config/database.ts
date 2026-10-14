@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { MONGODB_URI } from './config';
 
 // Module state survives between warm serverless invocations, so the in-flight
 // connection promise is cached here. Without this, every request would open a
@@ -8,15 +9,9 @@ let connecting: Promise<typeof mongoose> | null = null;
 const connectDB = async (): Promise<void> => {
   if (mongoose.connection.readyState === 1) return;
 
-  const mongoURI = process.env.MONGODB_URI;
-  if (!mongoURI) {
-    console.error('❌ MONGODB_URI is not set');
-    return;
-  }
-
   try {
     if (!connecting) {
-      connecting = mongoose.connect(mongoURI, {
+      connecting = mongoose.connect(MONGODB_URI, {
         // Fail fast instead of letting a request hang for the default 30s.
         serverSelectionTimeoutMS: 10000
       });
