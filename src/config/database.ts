@@ -2,7 +2,11 @@ import mongoose from 'mongoose';
 
 const connectDB = async (): Promise<void> => {
   try {
-    const mongoURI = "mongodb+srv://moosakhan3856902_db_user:JsjNssLLBXbiKA0T@cluster0.5ui7fhr.mongodb.net/?appName=Cluster0";
+    const mongoURI = process.env.MONGODB_URI;
+    if (!mongoURI) {
+      console.error('❌ MONGODB_URI is not set');
+      return;
+    }
     await mongoose.connect(mongoURI);
     console.log('✅ MongoDB connected successfully');
   } catch (err) {

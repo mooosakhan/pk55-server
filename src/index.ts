@@ -28,9 +28,10 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Da
 // Connect to database first, then start server
 const startServer = async () => {
   try {
+    // connectDB reports its own success/failure and never throws:
+    // the server still starts so health checks stay reachable.
     await connectDB();
-    console.log('✅ Connected to the database');
-    
+
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ Server running on port ${PORT}`);
     });
