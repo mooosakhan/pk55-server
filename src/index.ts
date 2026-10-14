@@ -1,44 +1,19 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import authRoutes from './routes/auth';
-import imagesRoutes from './routes/images';
-import settingsRoutes from './routes/settings';
+import app from './app';
 import connectDB from './config/database';
 
-const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
-
-app.use('/api/auth', authRoutes);
-app.use('/api/images', imagesRoutes);
-app.use('/api/settings', settingsRoutes);
-
-app.get('/', (_req, res) => res.json({ message: 'PK55 API Server' }));
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
-
-// Connect to database first, then start server
+// Local/long-running entry point. The serverless entry point is api/index.ts,
+// which exports the same app without ever calling listen().
 const startServer = async () => {
-  try {
-    // connectDB reports its own success/failure and never throws:
-    // the server still starts so health checks stay reachable.
-    await connectDB();
+  // connectDB reports its own success/failure and never throws:
+  // the server still starts so health checks stay reachable.
+  await connectDB();
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`✅ Server running on port ${PORT}`);
-    });
-  } catch (err) {
-    console.error('❌ Database connection failed:', err);
-    process.exit(1);
-  }
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Server running on port ${PORT}`);
+  });
 };
 
 startServer();
