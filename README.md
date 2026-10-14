@@ -3,9 +3,9 @@
 A Node.js/Express backend application built with TypeScript.
 
 ## Features
-
+     sd
 - Authentication with JWT
-- Banner management
+- Banner management 
 - User management
 - Discount scheduling with node-cron
 - File upload support with multer
